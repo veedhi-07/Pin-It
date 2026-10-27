@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MediaType {
+  image
+  video
+}
+
+enum ConversationType {
+  dm
+  group
+}
+
+enum MessageType {
+  text
+  pin
+  media
+}
+
+enum MemberRole {
+  owner
+  admin
+  member
+}
+
+model User {
+  id              String               @id @default(uuid())
+  email           String               @unique
+  passwordHash    String
+  name            String
+  avatarUrl       String?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  pins            Pin[]
+  boards          Board[]
+  memberships     ConversationMember[]
+  messages        Message[]
+}
+
+model Pin {
+  id            String     @id @default(uuid())
+  ownerId       String
+  owner         User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  mediaType     MediaType
+  mediaPublicId String
+  mediaUrl      String
+  thumbnailUrl  String
+  title         String
+  description   String     @default("")
+  tags          String[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  boardPins     BoardPin[]
+  messages      Message[]
+
+  @@index([ownerId])
+}
+
+model Board {
+  id        String     @id @default(uuid())
+  ownerId   String
+  owner     User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  name      String
+  isPrivate Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  pins      BoardPin[]
+
+  @@index([ownerId])
+}
+
+model BoardPin {
+  boardId   String
+  pinId     String
+  board     Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  pin       Pin      @relation(fields: [pinId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([boardId, pinId])
+}
+
+model Conversation {
+  id        String               @id @default(uuid())
+  type      ConversationType
+  name      String?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+  members   ConversationMember[]
+  messages  Message[]
+}
+
+model ConversationMember {
+  conversationId String
+  userId         String
+  role           MemberRole     @default(member)
+  conversation   Conversation   @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt       DateTime       @default(now())
+
+  @@id([conversationId, userId])
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  senderId       String
+  type           MessageType  @default(text)
+  body           String       @default("")
+  pinId          String?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  pin            Pin?         @relation(fields: [pinId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+}
